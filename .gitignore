@@ -206,3 +206,5 @@ $RECYCLE.BIN/
 
 application/config/client_secret.json
 application/config/slack.yaml
+# stock_data で生成される CSV（.gitkeep は残す）
+stock_data/data/*.csv
