@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -63,5 +64,6 @@ def load_or_synthesize(symbol: str = "7203.T", data_dir: Path = DATA_DIR) -> tup
         df = df.sort_values("Date").reset_index(drop=True)
         return df, "real"
     # 銘柄ごとに違う系列になるよう、シンボルから安定した seed を作る
-    seed = 42 + sum(ord(c) for c in symbol)
+    # （crc32 は実行間で安定し、char 合計のような衝突が起きにくい）
+    seed = zlib.crc32(symbol.encode("utf-8")) % (2**31)
     return synthesize(symbol, seed=seed), "synthetic"
