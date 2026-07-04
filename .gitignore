@@ -208,3 +208,5 @@ application/config/client_secret.json
 application/config/slack.yaml
 # stock_data で生成される CSV（.gitkeep は残す）
 stock_data/data/*.csv
+# ダッシュボードのデモ表示用に backtest_*.csv（合成データ）は追跡する
+!stock_data/data/backtest_*.csv

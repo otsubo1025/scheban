@@ -121,6 +121,36 @@ python backtest.py --max-holdings 3 --fee-rate 0.0005 --threshold 0.5
 > あります（有意な優劣ではありません）。ここで確認するのは**売買ロジックが
 > 未来を先読みせずエンドツーエンドで回ること**です。実データに差し替えて評価してください。
 
+## ステップ4: Streamlit ダッシュボード
+
+バックテスト結果（`data/backtest_*.csv`）を読み込んで表示するダッシュボードです。
+**重い計算はアプリ内で行わず、CSV を読んで表示するだけ**（メモリ節約）。
+
+```bash
+pip install -r requirements.txt
+python backtest.py          # 先に CSV を生成（未生成なら）
+streamlit run dashboard.py  # ブラウザで開く
+```
+
+表示内容:
+- 上部の**サマリー指標**: トータルリターン・最大ドローダウン・勝率・実現損益（Buy&Hold比較つき）
+- **資産推移グラフ**（戦略 vs buy & hold）
+- **現在の保有状況**（銘柄・株数・評価損益・現金）
+- **理由つき売買ログ**（日付・売買・銘柄・株数・価格・上昇確率・SHAP上位要因・理由）
+  … 銘柄・期間で絞り込み可能
+- スマホ向けに centered レイアウト＋指標は2列で折り返し。
+
+読み込む CSV（すべて `backtest.py` が生成）:
+`backtest_summary.csv` / `backtest_equity.csv` / `backtest_positions.csv` / `backtest_trades.csv`
+
+### クラウド（Streamlit Community Cloud）へのデプロイ
+
+1. このリポジトリを GitHub に push。
+2. Streamlit Community Cloud で **Main file path** を `stock_data/dashboard.py` に設定。
+   依存は同ディレクトリの `stock_data/requirements.txt` から解決されます。
+3. リポジトリには**デモ表示用の合成データ `data/backtest_*.csv`** を含めているため、
+   デプロイ直後から表示できます（実データで再生成すれば内容が置き換わります）。
+
 ## 注意
 
 - ステップ1の実データ取得は Yahoo Finance へアクセスできるネットワーク環境で実行してください。

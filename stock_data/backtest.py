@@ -187,8 +187,31 @@ def run_backtest(
             {"date": d.date().isoformat(), "equity": cash + holdings_value, "cash": cash, "n_positions": len(positions)}
         )
 
-    # 最終日にポジションを手仕舞い（実現損益を確定して勝率を集計しやすくする）
+    # 最終日リプレイ後・手仕舞い前の「現在の保有状況」スナップショット
     last_d = dates[-1]
+    snapshot_cash = cash
+    snapshot_rows = []
+    for s, pos in positions.items():
+        last_price = float(frames[s].at[last_d, "Close"])
+        market_value = pos["shares"] * last_price
+        snapshot_rows.append(
+            {
+                "symbol": s,
+                "name": TICKERS.get(s, s),
+                "shares": pos["shares"],
+                "entry_date": pos["entry_date"].date().isoformat(),
+                "entry_price": round(pos["entry_price"], 2),
+                "last_price": round(last_price, 2),
+                "market_value": round(market_value, 2),
+                "unrealized_pnl": round((last_price - pos["entry_price"]) * pos["shares"] - pos["entry_fee"], 2),
+            }
+        )
+    positions_df = pd.DataFrame(
+        snapshot_rows,
+        columns=["symbol", "name", "shares", "entry_date", "entry_price", "last_price", "market_value", "unrealized_pnl"],
+    )
+
+    # 最終日にポジションを手仕舞い（実現損益を確定して勝率を集計しやすくする）
     for s in list(positions):
         pos = positions[s]
         price = float(frames[s].at[last_d, "Close"])
@@ -249,6 +272,8 @@ def run_backtest(
         "dates": dates,
         "equity_df": equity_df,
         "trades_df": trades_df,
+        "positions_df": positions_df,
+        "snapshot_cash": float(snapshot_cash),
         "strategy": strat_metrics,
         "buyhold": bh_metrics,
     }
@@ -302,15 +327,47 @@ def run(args: argparse.Namespace) -> dict:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     trades_path = OUT_DIR / "backtest_trades.csv"
     equity_path = OUT_DIR / "backtest_equity.csv"
+    positions_path = OUT_DIR / "backtest_positions.csv"
+    summary_path = OUT_DIR / "backtest_summary.csv"
     res["trades_df"].to_csv(trades_path, index=False, encoding="utf-8")
     res["equity_df"].to_csv(equity_path, index=False, encoding="utf-8")
+    res["positions_df"].to_csv(positions_path, index=False, encoding="utf-8")
+
+    # ダッシュボードが計算せず表示するだけで済むよう、サマリー指標を1行 CSV に保存
+    s = res["strategy"]
+    dates = res["dates"]
+    holdings_value = float(res["positions_df"]["market_value"].sum()) if not res["positions_df"].empty else 0.0
+    summary = pd.DataFrame(
+        [
+            {
+                "source": res["source"],
+                "start": dates[0].date().isoformat(),
+                "end": dates[-1].date().isoformat(),
+                "initial_cash": args.initial_cash,
+                "final_equity": s["final_equity"],
+                "total_return": s["total_return"],
+                "max_drawdown": s["max_drawdown"],
+                "win_rate": s["win_rate"],
+                "total_pnl": s["total_pnl"],
+                "n_trades": s["n_trades"],
+                "n_closed": s["n_closed"],
+                "cash": res["snapshot_cash"],
+                "holdings_value": holdings_value,
+                "buyhold_return": res["buyhold"]["total_return"],
+                "buyhold_max_drawdown": res["buyhold"]["max_drawdown"],
+            }
+        ]
+    )
+    summary.to_csv(summary_path, index=False, encoding="utf-8")
 
     print("\n--- 売買ログ（先頭8件）---")
     cols = ["date", "action", "symbol", "shares", "price", "up_prob", "realized_pnl", "top_shap"]
     with pd.option_context("display.max_columns", None, "display.width", 220):
         print(res["trades_df"][cols].head(8).to_string(index=False))
-    print(f"\n売買ログ: {trades_path}")
-    print(f"資産推移: {equity_path}")
+    print(f"\n売買ログ:   {trades_path}")
+    print(f"資産推移:   {equity_path}")
+    print(f"保有状況:   {positions_path}")
+    print(f"サマリー:   {summary_path}")
     return res
 
 
